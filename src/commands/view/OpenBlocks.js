@@ -14,6 +14,7 @@ module.exports = {
     }
 
     this.blocks.style.display = 'block';
+    editor.select(null);
   },
 
   stop() {
