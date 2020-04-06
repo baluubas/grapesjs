@@ -1,5 +1,5 @@
-import { bindAll, isFunction, result } from 'underscore';
-import { on, off } from 'utils/mixins';
+import { bindAll, isFunction, result, isUndefined } from 'underscore';
+import { on, off, isEscKey } from 'utils/mixins';
 
 export default class Dragger {
   /**
@@ -8,6 +8,10 @@ export default class Dragger {
    */
   constructor(opts = {}) {
     this.opts = {
+      /**
+       * Element on which the drag will be executed. By default, the document will be used
+       */
+      container: null,
       /**
        * Callback on start
        * onStart(ev, dragger) {
@@ -42,13 +46,22 @@ export default class Dragger {
        */
       getPosition: null,
 
+      // Static guides to be snapped
+      guidesStatic: null,
+
+      // Target guides that will snap to static one
+      guidesTarget: null,
+
+      // Offset before snap to guides
+      snapOffset: 5,
+
       // Document on which listen to pointer events
       doc: 0,
 
       // Scale result points, can also be a function
       scale: 1
     };
-    bindAll(this, 'drag', 'stop');
+    bindAll(this, 'drag', 'stop', 'keyHandle');
     this.setOptions(opts);
     this.delta = { x: 0, y: 0 };
     return this;
@@ -67,10 +80,12 @@ export default class Dragger {
 
   toggleDrag(enable) {
     const docs = this.getDocumentEl();
+    const container = this.getContainerEl();
     const method = enable ? 'on' : 'off';
     const methods = { on, off };
-    methods[method](docs, 'mousemove', this.drag);
-    methods[method](docs, 'mouseup', this.stop);
+    methods[method](container, 'mousemove dragover', this.drag);
+    methods[method](docs, 'mouseup dragend touchend', this.stop);
+    methods[method](docs, 'keydown', this.keyHandle);
   }
 
   /**
@@ -78,9 +93,12 @@ export default class Dragger {
    * @param  {Event} e
    */
   start(ev) {
-    const { onStart } = this.opts;
+    const { opts } = this;
+    const { onStart } = opts;
     this.toggleDrag(1);
     this.startPointer = this.getPointerPos(ev);
+    this.guidesStatic = result(opts, 'guidesStatic') || [];
+    this.guidesTarget = result(opts, 'guidesTarget') || [];
     isFunction(onStart) && onStart(ev, this);
     this.startPosition = this.getStartPosition();
     this.drag(ev);
@@ -114,27 +132,123 @@ export default class Dragger {
       delta.y = startPointer.y;
     }
 
-    ['x', 'y'].forEach(co => (delta[co] = delta[co] * result(opts, 'scale')));
-    this.lockedAxis = lockedAxis;
-    this.delta = delta;
-    this.move(delta.x, delta.y);
+    const moveDelta = delta => {
+      ['x', 'y'].forEach(co => (delta[co] = delta[co] * result(opts, 'scale')));
+      this.delta = delta;
+      this.move(delta.x, delta.y);
+      isFunction(onDrag) && onDrag(ev, this);
+    };
+    const deltaPre = { ...delta };
     this.currentPointer = currentPos;
-    isFunction(onDrag) && onDrag(ev, this);
+    this.lockedAxis = lockedAxis;
+    moveDelta(delta);
+
+    if (this.guidesTarget.length) {
+      const { newDelta, trgX, trgY } = this.snapGuides(deltaPre);
+      (trgX || trgY) && moveDelta(newDelta);
+    }
 
     // In case the mouse button was released outside of the window
     ev.which === 0 && this.stop(ev);
   }
 
   /**
+   * Check if the delta hits some guide
+   */
+  snapGuides(delta) {
+    const newDelta = delta;
+    let { trgX, trgY } = this;
+
+    this.guidesTarget.forEach(trg => {
+      // Skip the guide if its locked axis already exists
+      if ((trg.x && this.trgX) || (trg.y && this.trgY)) return;
+      trg.active = 0;
+
+      this.guidesStatic.forEach(stat => {
+        if ((trg.y && stat.x) || (trg.x && stat.y)) return;
+        const isY = trg.y && stat.y;
+        const axs = isY ? 'y' : 'x';
+        const trgPoint = trg[axs];
+        const statPoint = stat[axs];
+        const deltaPoint = delta[axs];
+        const trgGuide = isY ? trgY : trgX;
+
+        if (this.isPointIn(trgPoint, statPoint)) {
+          if (isUndefined(trgGuide)) {
+            const trgValue = deltaPoint - (trgPoint - statPoint);
+            this.setGuideLock(trg, trgValue);
+          }
+        }
+      });
+    });
+
+    trgX = this.trgX;
+    trgY = this.trgY;
+
+    ['x', 'y'].forEach(co => {
+      const axis = co.toUpperCase();
+      let trg = this[`trg${axis}`];
+
+      if (trg && !this.isPointIn(delta[co], trg.lock)) {
+        this.setGuideLock(trg, null);
+        trg = null;
+      }
+
+      if (trg && !isUndefined(trg.lock)) {
+        newDelta[co] = trg.lock;
+      }
+    });
+
+    return {
+      newDelta,
+      trgX: this.trgX,
+      trgY: this.trgY
+    };
+  }
+
+  isPointIn(src, trg, { offset } = {}) {
+    const ofst = offset || this.opts.snapOffset;
+    return (
+      (src >= trg && src <= trg + ofst) || (src <= trg && src >= trg - ofst)
+    );
+  }
+
+  setGuideLock(guide, value) {
+    const axis = !isUndefined(guide.x) ? 'X' : 'Y';
+    const trgName = `trg${axis}`;
+
+    if (value !== null) {
+      guide.active = 1;
+      guide.lock = value;
+      this[trgName] = guide;
+    } else {
+      delete guide.active;
+      delete guide.lock;
+      delete this[trgName];
+    }
+
+    return guide;
+  }
+
+  /**
    * Stop dragging
    */
-  stop(ev) {
+  stop(ev, opts = {}) {
     const { delta } = this;
+    const cancelled = opts.cancel;
+    const x = cancelled ? 0 : delta.x;
+    const y = cancelled ? 0 : delta.y;
     this.toggleDrag();
     this.lockedAxis = null;
-    this.move(delta.x, delta.y, 1);
+    this.move(x, y, 1);
     const { onEnd } = this.opts;
-    isFunction(onEnd) && onEnd(ev, this);
+    isFunction(onEnd) && onEnd(ev, this, { cancelled });
+  }
+
+  keyHandle(ev) {
+    if (isEscKey(ev)) {
+      this.stop(ev, { cancel: 1 });
+    }
   }
 
   /**
@@ -161,6 +275,11 @@ export default class Dragger {
       el.style.left = `${xPos}px`;
       el.style.top = `${yPos}px`;
     }
+  }
+
+  getContainerEl() {
+    const { container } = this.opts;
+    return container ? [container] : this.getDocumentEl();
   }
 
   /**
