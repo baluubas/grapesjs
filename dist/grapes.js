@@ -28894,6 +28894,7 @@ module.exports = {
     }
 
     this.blocks.style.display = 'block';
+    editor.select(null);
   },
   stop: function stop() {
     var blocks = this.blocks;
@@ -33304,12 +33305,12 @@ var Component = Backbone.Model.extend(_Styleable2.default).extend({
    * @param  {Options} opts Options for the add
    * @return {Array} Array of added traits
    * @example
-   * component.addTrat('title', { at: 1 }); // Add title trait (`at` option is the position index)
-   * component.addTrat({
+   * component.addTrait('title', { at: 1 }); // Add title trait (`at` option is the position index)
+   * component.addTrait({
    *  type: 'checkbox',
    *  name: 'disabled',
    * });
-   * component.addTrat(['title', {...}, ...]);
+   * component.addTrait(['title', {...}, ...]);
    */
   addTrait: function addTrait(trait) {
     var opts = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
@@ -39436,7 +39437,7 @@ module.exports = function () {
     plugins: plugins,
 
     // Will be replaced on build
-    version: '0.14.62',
+    version: '0.14.63',
 
     /**
      * Initialize the editor with passed options
@@ -39584,7 +39585,8 @@ module.exports = function () {
         handler: 'core:component-exit'
       },
       'core:component-delete': {
-        keys: 'backspace, delete',
+        //keys: 'backspace, delete',
+        keys: 'delete',
         handler: 'core:component-delete'
       }
     }
