@@ -22,6 +22,7 @@ module.exports = Backbone.View.extend({
     childrenView && childrenView.stopListening();
     scriptContainer && scriptContainer.remove();
     removed.components().forEach(it => this.removeChildren(it, coll, opts));
+    em && em.trigger('component:remove', removed);
 
     if (em && !tempRemove) {
       // Remove the component from the global list
