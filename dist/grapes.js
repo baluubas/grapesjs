@@ -36367,7 +36367,6 @@ module.exports = _backbone2.default.View.extend({
     removed.components().forEach(function (it) {
       return _this.removeChildren(it, coll, opts);
     });
-    em && em.trigger('component:remove', removed);
 
     if (em && !tempRemove) {
       // Remove the component from the global list
@@ -36389,6 +36388,8 @@ module.exports = _backbone2.default.View.extend({
         removed.removed();
         em.trigger('component:remove', removed);
       }
+    } else {
+      em && em.trigger('component:remove', removed);
     }
   },
 
@@ -39438,7 +39439,7 @@ module.exports = function () {
     plugins: plugins,
 
     // Will be replaced on build
-    version: '0.14.64',
+    version: '0.14.65',
 
     /**
      * Initialize the editor with passed options
