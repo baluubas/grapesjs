@@ -1012,10 +1012,19 @@ module.exports = Backbone.View.extend({
 
     if (this.moved) {
       const toMove = this.toMove;
-      const toMoveArr = isArray(toMove) ? toMove : toMove ? [toMove] : [src];
-      toMoveArr.forEach(model => {
-        moved.push(this.move(target, model, lastPos));
-      });
+      var toMoveArr = isArray(toMove) ? toMove : toMove ? [toMove] : [src];
+      if (toMoveArr.length > 1) {
+        toMoveArr.sort((a, b) =>
+          a.attributes.position > b.attributes.position
+            ? 1
+            : b.attributes.position > a.attributes.position
+            ? -1
+            : 0
+        );
+        if (lastPos.index == 0) {
+          toMoveArr = toMoveArr.reverse();
+        }
+      }
     }
 
     if (this.plh) this.plh.style.display = 'none';
