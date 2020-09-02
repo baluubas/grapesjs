@@ -39439,7 +39439,7 @@ module.exports = function () {
     plugins: plugins,
 
     // Will be replaced on build
-    version: '0.14.66',
+    version: '0.14.65',
 
     /**
      * Initialize the editor with passed options
@@ -55160,14 +55160,9 @@ module.exports = _backbone2.default.View.extend({
     if (this.moved) {
       var toMove = this.toMove;
       var toMoveArr = (0, _underscore.isArray)(toMove) ? toMove : toMove ? [toMove] : [src];
-      if (toMoveArr.length > 1) {
-        toMoveArr.sort(function (a, b) {
-          return a.attributes.position > b.attributes.position ? 1 : b.attributes.position > a.attributes.position ? -1 : 0;
-        });
-        if (lastPos.index == 0) {
-          toMoveArr = toMoveArr.reverse();
-        }
-      }
+      toMoveArr.forEach(function (model) {
+        moved.push(_this3.move(target, model, lastPos));
+      });
     }
 
     if (this.plh) this.plh.style.display = 'none';
